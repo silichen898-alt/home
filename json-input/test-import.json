@@ -1,0 +1,12 @@
+{
+  "account_name": "测试账号001",
+  "account_type": "Gmail账号",
+  "customer_email": "customer@example.com",
+  "outbound_date": "2024-01-15",
+  "price": 99.99,
+  "status": "在库",
+  "source": "批量采购",
+  "notes": "这是一个测试账号",
+  "inbound_date": "2024-01-01",
+  "quantity": 10
+}

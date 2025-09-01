@@ -15,9 +15,16 @@ yarn-error.log*
 config.json
 notion-config.json
 local-db/
-*.json
+daily-limits.json
+
+# 备份文件
+*BACKUP*.json
+*backup*.json
+
+# 允许的配置文件
 !package.json
 !package-lock.json
+!config.template.json
 
 # 日志文件
 *.log

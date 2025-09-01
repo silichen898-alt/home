@@ -1,0 +1,75 @@
+{
+  "telegram": {
+    "botToken": "YOUR_BOT_TOKEN_HERE",
+    "adminIds": ["ADMIN_ID_1", "ADMIN_ID_2"]
+  },
+  "notion": {
+    "enabled": false,
+    "syncEnabled": false,
+    "apiToken": "YOUR_NOTION_API_TOKEN",
+    "databaseId": "YOUR_NOTION_DATABASE_ID",
+    "fieldMapping": {
+      "email": "客户邮箱",
+      "邮箱": "客户邮箱",
+      "password": "主邮箱密码",
+      "密码": "主邮箱密码",
+      "auxiliary_email": "铺助邮箱",
+      "辅助邮箱": "铺助邮箱",
+      "auxiliary_password": "铺助邮箱密码",
+      "辅助邮箱密码": "铺助邮箱密码",
+      "account_type": "账号类型",
+      "类型": "账号类型",
+      "status": "状态",
+      "状态": "状态",
+      "inbound_date": "入库日期",
+      "入库日期": "入库日期",
+      "inbound_price": "入库价格",
+      "入库价格": "入库价格",
+      "outbound_date": "出库日期",
+      "出库日期": "出库日期",
+      "outbound_price": "出库价格",
+      "出库价格": "出库价格",
+      "account_key": "API密钥",
+      "api_key": "API密钥",
+      "two_fa_code": "2fa密码",
+      "2fa": "2fa密码",
+      "notes": "备注",
+      "备注": "备注"
+    },
+    "defaultValues": {
+      "status": "在库",
+      "account_type": "未分类账号"
+    }
+  },
+  "localDatabase": {
+    "enabled": true,
+    "path": "./local-db/accounts.json",
+    "backupEnabled": true,
+    "backupInterval": "daily",
+    "maxBackups": 7
+  },
+  "monitor": {
+    "watchDirectory": "./json-input",
+    "enabled": true,
+    "interval": 5000
+  },
+  "features": {
+    "parsing": {
+      "supportedFormats": ["pipe", "space", "csv"],
+      "maxAccountsPerRequest": 50
+    },
+    "outbound": {
+      "enabled": true,
+      "logFile": "./outbound-logs.txt"
+    },
+    "stats": {
+      "cacheEnabled": false,
+      "refreshInterval": 300
+    },
+    "cardShop": {
+      "enabled": false,
+      "syncEnabled": false,
+      "serverDeployment": false
+    }
+  }
+}
