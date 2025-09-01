@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail账号商城 - 优质云服务账号</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-envelope"></i>
+                <span>Gmail商城</span>
+            </div>
+            <div class="nav-links">
+                <a href="#products">商品</a>
+                <a href="#about">关于</a>
+                <a href="/admin">管理</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 首页横幅 -->
+    <section class="hero">
+        <div class="container">
+            <h1>优质云服务账号</h1>
+            <p>提供Gmail、AWS、Azure等优质账号，支持多种支付方式</p>
+            <div class="stats">
+                <div class="stat-item">
+                    <i class="fas fa-boxes"></i>
+                    <span>现货 <%= totalCount %> 个</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>安全保障</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-shipping-fast"></i>
+                    <span>自动发货</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 商品展示 -->
+    <section id="products" class="products">
+        <div class="container">
+            <h2>商品分类</h2>
+            
+            <% Object.keys(products).forEach(function(type) { %>
+            <div class="product-category">
+                <h3>
+                    <% if (type === 'GMAIL') { %>
+                        <i class="fas fa-envelope" style="color: #ea4335;"></i> Gmail账号
+                    <% } else if (type === 'AWS') { %>
+                        <i class="fab fa-aws" style="color: #ff9900;"></i> Amazon AWS
+                    <% } else if (type === 'AZURE') { %>
+                        <i class="fab fa-microsoft" style="color: #0078d4;"></i> Microsoft Azure
+                    <% } else { %>
+                        <i class="fas fa-cloud"></i> <%= type %>
+                    <% } %>
+                    <span class="badge"><%= products[type].length %> 个现货</span>
+                </h3>
+                
+                <div class="product-grid">
+                    <% products[type].forEach(function(product) { %>
+                    <div class="product-card" data-product-id="<%= product.id %>">
+                        <div class="product-header">
+                            <h4><%= product.email %></h4>
+                            <span class="price">$<%= product.price %></span>
+                        </div>
+                        <div class="product-details">
+                            <div class="detail-item">
+                                <i class="fas fa-tag"></i>
+                                <span>类型: <%= product.account_type %></span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-envelope-open"></i>
+                                <span>辅助邮箱: 已配置</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-key"></i>
+                                <span>2FA: <%= product.two_fa_code ? '已配置' : '未配置' %></span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-code"></i>
+                                <span>API Key: <%= product.account_key ? '已配置' : '未配置' %></span>
+                            </div>
+                        </div>
+                        <button class="buy-btn" onclick="buyProduct(<%= product.id %>)">
+                            <i class="fas fa-shopping-cart"></i>
+                            立即购买
+                        </button>
+                    </div>
+                    <% }); %>
+                </div>
+            </div>
+            <% }); %>
+        </div>
+    </section>
+
+    <!-- 购买模态框 -->
+    <div id="buyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>购买商品</h3>
+                <span class="close" onclick="closeBuyModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="productInfo"></div>
+                
+                <form id="orderForm">
+                    <div class="form-group">
+                        <label for="buyerContact">
+                            <i class="fas fa-user"></i>
+                            联系方式 (Telegram/邮箱)
+                        </label>
+                        <input type="text" id="buyerContact" name="buyerContact" required 
+                               placeholder="@username 或 email@example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <i class="fas fa-credit-card"></i>
+                            支付方式
+                        </label>
+                        <div class="payment-methods">
+                            <label class="payment-option">
+                                <input type="radio" name="paymentMethod" value="alipay" checked>
+                                <div class="payment-card">
+                                    <i class="fab fa-alipay"></i>
+                                    <span>支付宝</span>
+                                </div>
+                            </label>
+                            <label class="payment-option">
+                                <input type="radio" name="paymentMethod" value="usdt">
+                                <div class="payment-card">
+                                    <i class="fab fa-bitcoin"></i>
+                                    <span>USDT</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-check"></i>
+                        确认订单
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 支付模态框 -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>支付信息</h3>
+                <span class="close" onclick="closePaymentModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="paymentDetails"></div>
+                <div class="payment-actions">
+                    <button id="confirmPaymentBtn" class="confirm-btn">
+                        <i class="fas fa-check-circle"></i>
+                        我已完成支付
+                    </button>
+                    <button onclick="closePaymentModal()" class="cancel-btn">
+                        <i class="fas fa-times"></i>
+                        取消订单
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成功模态框 -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>购买成功</h3>
+                <span class="close" onclick="closeSuccessModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="success-message">
+                    <i class="fas fa-check-circle success-icon"></i>
+                    <h4>恭喜！账号购买成功</h4>
+                    <div id="accountInfo"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/main.js"></script>
+</body>
+</html>

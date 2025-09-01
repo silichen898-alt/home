@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - Gmail商城</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/admin.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <nav class="admin-navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-cog"></i>
+                <span>管理后台</span>
+            </div>
+            <div class="nav-links">
+                <a href="/">返回商城</a>
+                <a href="#dashboard">仪表板</a>
+                <a href="#products">商品管理</a>
+                <a href="#orders">订单管理</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 仪表板 -->
+    <section id="dashboard" class="dashboard">
+        <div class="container">
+            <h2>仪表板统计</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3><%= stats.totalProducts %></h3>
+                        <p>总商品数</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #4caf50;">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3><%= stats.availableProducts %></h3>
+                        <p>可售商品</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #f44336;">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3><%= stats.soldProducts %></h3>
+                        <p>已售商品</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #ff9800;">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3><%= stats.totalOrders %></h3>
+                        <p>总订单数</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #9c27b0;">
+                        <i class="fas fa-hourglass-half"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3><%= stats.pendingOrders %></h3>
+                        <p>待处理订单</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #2196f3;">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>$<%= stats.totalRevenue.toFixed(2) %></h3>
+                        <p>总收入</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 商品管理 -->
+    <section id="products" class="products-management">
+        <div class="container">
+            <div class="section-header">
+                <h2>商品管理</h2>
+                <button class="btn btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync"></i>
+                    刷新数据
+                </button>
+            </div>
+            
+            <div class="table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>邮箱</th>
+                            <th>类型</th>
+                            <th>价格</th>
+                            <th>状态</th>
+                            <th>辅助邮箱</th>
+                            <th>2FA</th>
+                            <th>API Key</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% products.forEach(function(product) { %>
+                        <tr class="<%= product.status === 'available' ? 'available' : 'sold' %>">
+                            <td><%= product.id %></td>
+                            <td><%= product.email %></td>
+                            <td>
+                                <span class="type-badge type-<%= product.account_type.toLowerCase() %>">
+                                    <%= product.account_type %>
+                                </span>
+                            </td>
+                            <td>$<%= product.price %></td>
+                            <td>
+                                <span class="status-badge status-<%= product.status %>">
+                                    <%= product.status === 'available' ? '可售' : '已售' %>
+                                </span>
+                            </td>
+                            <td><%= product.auxiliary_email || 'N/A' %></td>
+                            <td><%= product.two_fa_code ? '已配置' : 'N/A' %></td>
+                            <td>
+                                <% if (product.account_key) { %>
+                                    <span class="api-key">
+                                        <%= product.account_key.substring(0, 15) %>...
+                                    </span>
+                                <% } else { %>
+                                    N/A
+                                <% } %>
+                            </td>
+                            <td><%= new Date(product.created_at).toLocaleString('zh-CN') %></td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="viewProduct(<%= product.id %>)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <% if (product.status === 'sold') { %>
+                                <button class="btn btn-sm btn-warning" onclick="restoreProduct(<%= product.id %>)">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                                <% } %>
+                            </td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 订单管理 -->
+    <section id="orders" class="orders-management">
+        <div class="container">
+            <h2>订单管理</h2>
+            
+            <div class="table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>订单号</th>
+                            <th>商品</th>
+                            <th>买家联系</th>
+                            <th>金额</th>
+                            <th>支付方式</th>
+                            <th>支付状态</th>
+                            <th>发货状态</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (orders.length === 0) { %>
+                        <tr>
+                            <td colspan="9" class="no-data">暂无订单数据</td>
+                        </tr>
+                        <% } else { %>
+                            <% orders.forEach(function(order) { %>
+                            <tr>
+                                <td class="order-no"><%= order.order_no %></td>
+                                <td><%= order.product_id %></td>
+                                <td><%= order.buyer_contact %></td>
+                                <td>$<%= order.amount %></td>
+                                <td>
+                                    <% if (order.payment_method === 'alipay') { %>
+                                        <i class="fab fa-alipay"></i> 支付宝
+                                    <% } else if (order.payment_method === 'usdt') { %>
+                                        <i class="fab fa-bitcoin"></i> USDT
+                                    <% } else { %>
+                                        <%= order.payment_method %>
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-<%= order.payment_status %>">
+                                        <%= order.payment_status === 'pending' ? '待支付' : '已支付' %>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-<%= order.delivery_status %>">
+                                        <%= order.delivery_status === 'pending' ? '待发货' : '已发货' %>
+                                    </span>
+                                </td>
+                                <td><%= new Date(order.created_at).toLocaleString('zh-CN') %></td>
+                                <td>
+                                    <% if (order.payment_status === 'pending') { %>
+                                    <button class="btn btn-sm btn-success" onclick="confirmPayment('<%= order.order_no %>')">
+                                        <i class="fas fa-check"></i> 确认支付
+                                    </button>
+                                    <% } %>
+                                </td>
+                            </tr>
+                            <% }); %>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 商品详情模态框 -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>商品详情</h3>
+                <span class="close" onclick="closeProductModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="productDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/admin.js"></script>
+</body>
+</html>
