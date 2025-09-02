@@ -80,6 +80,16 @@ class SmartDataParser {
       }
     }
     
+    // 检查是否为AWS格式
+    if (this.isAWSFormat(rawText)) {
+      console.log('📌 检测到AWS格式，使用专用解析器');
+      const awsResult = this.parseAWSFormat(rawText);
+      if (awsResult) {
+        console.log(`✅ AWS解析成功`);
+        return [awsResult];
+      }
+    }
+    
     // 首先检查是否为混合格式（包含聊天记录时间戳）
     const mixedFormatResult = this.parseMixedChatFormat(rawText);
     if (mixedFormatResult && mixedFormatResult.length > 0) {
@@ -1819,7 +1829,6 @@ class SmartDataParser {
         if (secretMatch) {
           result.secret = secretMatch[0];
         }
-        break;
       }
       
       // 查找aws密码行: "aws N8N6tAa1."
@@ -1884,6 +1893,69 @@ class SmartDataParser {
     }
     
     return result;
+  }
+
+  // 检测是否为AWS格式
+  isAWSFormat(text) {
+    // AWS格式特征：包含AKIA访问密钥和aws密码行
+    const hasAKIA = /AKIA[A-Z0-9]{16}/.test(text);
+    const hasAWSPassword = /^aws\s+.+/mi.test(text);
+    return hasAKIA && hasAWSPassword;
+  }
+
+  // 解析AWS格式
+  parseAWSFormat(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    // 提取邮箱
+    let email = '';
+    for (const line of lines) {
+      const emailMatch = line.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (emailMatch) {
+        email = emailMatch[1];
+        break;
+      }
+    }
+    
+    // 提取邮箱密码（aws行的内容）
+    let emailPassword = '';
+    for (const line of lines) {
+      const awsPasswordMatch = line.match(/^aws\s+(.+?)\.?$/i);
+      if (awsPasswordMatch) {
+        emailPassword = awsPasswordMatch[1].trim();
+        break;
+      }
+    }
+    
+    // 提取2FA
+    let twoFA = '';
+    for (const line of lines) {
+      if (line.match(/^2fa\s/i)) {
+        twoFA = line.replace(/^2fa\s+/i, '').trim();
+        break;
+      }
+    }
+    
+    // 提取AWS访问密钥
+    const awsKeys = this.parseAWSMultiLineFormat(text);
+    
+    if (!email) {
+      return null;
+    }
+    
+    return {
+      account_type: '未分类',
+      email: email,
+      email_password: emailPassword,
+      auxiliary_email: '',
+      auxiliary_email_password: '',
+      two_fa_code: twoFA,
+      storage_date: this.getCurrentDate(),
+      account_key: '',
+      accessKey: awsKeys.access,
+      secretKey: awsKeys.secret,
+      notes: 'AWS多行格式解析'
+    };
   }
 }
 
