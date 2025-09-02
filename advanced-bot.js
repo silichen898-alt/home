@@ -5,6 +5,7 @@ const SmartDataParser = require('./smart-data-parser');
 const UnifiedStats = require('./unified-stats');
 const { Client } = require('@notionhq/client');
 const LocalDatabase = require('./local-database');
+const ServerSync = require('./server-sync');
 const config = require('./config.json');
 
 // Token隔离和实例管理
@@ -184,6 +185,7 @@ function formatDate(date) {
 
 // 初始化本地数据库
 const localDB = new LocalDatabase(config.localDatabase);
+const serverSync = new ServerSync();
 const statsManager = new UnifiedStats(localDB);
 
 // 限额管理函数
@@ -4270,6 +4272,10 @@ async function init() {
     // 获取机器人信息
     const me = await telegramRequest('getMe');
     console.log(`✅ 机器人 @${me.username} 已启动！`);
+    
+    // 启动服务器同步
+    console.log('🔄 启动服务器数据同步...');
+    serverSync.startAutoSync();
     
     // 清理旧更新
     const oldUpdates = await telegramRequest('getUpdates', { offset: -1 });
