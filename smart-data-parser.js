@@ -218,18 +218,23 @@ class SmartDataParser {
     // 提取密钥
     const accountKey = this.extractKey(recordText);
     
+    // 提取AWS访问密钥（如果是AWS账号）
+    const awsKeys = this.extractAWSKeys(recordText);
+    
     // 提取日期
     const storageDate = this.extractDate(recordText);
     
     return {
       account_type: accountType,
       email: mainEmail,
-      email_password: mainPassword,
+      email_password: mainPassword || awsKeys.password || '',
       auxiliary_email: auxEmail,
       auxiliary_email_password: auxPassword,
       two_fa_code: twoFACode,
       storage_date: storageDate,
-      account_key: accountKey
+      account_key: accountKey,
+      access: awsKeys.access,
+      secret: awsKeys.secret
     };
   }
   
@@ -1760,6 +1765,125 @@ class SmartDataParser {
     if (domain.includes('icloud')) return 'iCloud';
     
     return '其他邮箱';
+  }
+  
+  // 提取AWS访问密钥和秘密密钥
+  extractAWSKeys(text) {
+    const result = {
+      access: '',
+      secret: ''
+    };
+    
+    // AWS知识库模板解析
+    const awsFormats = [
+      // 格式1: 多行AWS格式
+      // Email address
+      // email@example.com  
+      // 2fa XXXXX
+      // AKIAZ2E35YLXXAALANF5 secretkeyhere
+      // aws password
+      this.parseAWSMultiLineFormat(text),
+      
+      // 格式2: 单行AWS格式  
+      // email password AKIAXXXXX secretkey 2fa
+      this.parseAWSSingleLineFormat(text)
+    ];
+    
+    // 尝试各种格式
+    for (const format of awsFormats) {
+      if (format.access && format.secret) {
+        return format;
+      }
+    }
+    
+    // 回退到通用解析
+    return this.parseAWSGeneric(text);
+  }
+  
+  // AWS多行格式解析
+  parseAWSMultiLineFormat(text) {
+    const result = { access: '', secret: '', password: '' };
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // 查找AKIA行
+      const akiaMatch = line.match(/AKIA[A-Z0-9]{16}/);
+      if (akiaMatch) {
+        result.access = akiaMatch[0];
+        
+        // Secret Key可能在同一行AKIA后面
+        const afterAkia = line.substring(line.indexOf(result.access) + result.access.length).trim();
+        const secretMatch = afterAkia.match(/[A-Za-z0-9+/]{30,}/);
+        if (secretMatch) {
+          result.secret = secretMatch[0];
+        }
+        break;
+      }
+      
+      // 查找aws密码行: "aws N8N6tAa1."
+      const awsPasswordMatch = line.match(/^aws\s+(.+?)\.?$/i);
+      if (awsPasswordMatch) {
+        result.password = awsPasswordMatch[1].trim();
+        console.log(`🔑 找到AWS密码: ${result.password}`);
+      }
+    }
+    
+    return result;
+  }
+  
+  // AWS单行格式解析  
+  parseAWSSingleLineFormat(text) {
+    const result = { access: '', secret: '' };
+    
+    // 在单行中查找AKIA和Secret
+    const akiaMatch = text.match(/AKIA[A-Z0-9]{16}/);
+    if (akiaMatch) {
+      result.access = akiaMatch[0];
+      
+      // 在AKIA后查找Secret Key
+      const akiaIndex = text.indexOf(result.access);
+      const afterAkia = text.substring(akiaIndex + result.access.length);
+      const secretMatch = afterAkia.match(/[A-Za-z0-9+/]{30,}/);
+      if (secretMatch) {
+        result.secret = secretMatch[0];
+      }
+    }
+    
+    return result;
+  }
+  
+  // AWS通用解析（回退方案）
+  parseAWSGeneric(text) {
+    const result = { access: '', secret: '' };
+    
+    // AWS Access Key 格式：AKIA开头，20个字符
+    const accessKeyRegex = /AKIA[A-Z0-9]{16}/g;
+    const accessMatches = text.match(accessKeyRegex);
+    if (accessMatches && accessMatches.length > 0) {
+      result.access = accessMatches[0];
+    }
+    
+    // AWS Secret Key：通常跟在Access Key之后，Base64格式，30-40个字符
+    const secretKeyRegex = /[A-Za-z0-9+/]{30,}/g;
+    const secretMatches = text.match(secretKeyRegex);
+    if (secretMatches && secretMatches.length > 0) {
+      // 如果找到access key，取它后面的secret key
+      if (result.access) {
+        const accessIndex = text.indexOf(result.access);
+        const afterAccess = text.substring(accessIndex + result.access.length);
+        const secretMatch = afterAccess.match(secretKeyRegex);
+        if (secretMatch && secretMatch.length > 0) {
+          result.secret = secretMatch[0];
+        }
+      } else {
+        // 如果没有access key，取第一个可能的secret
+        result.secret = secretMatches[0];
+      }
+    }
+    
+    return result;
   }
 }
 

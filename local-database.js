@@ -156,6 +156,8 @@ class LocalDatabase {
       twoFACode: accountData.two_fa_code || accountData.twoFACode || '',
       emailPassword: accountData.email_password || accountData.emailPassword || '',
       accountKey: accountData.account_key || accountData.accountKey || '',
+      accessKey: accountData.access_key || accountData.accessKey || accountData.access || '',
+      secretKey: accountData.secret_key || accountData.secretKey || accountData.secret || '',
       submitterId: accountData.submitterId || '',
       submitterName: accountData.submitterName || '',
       notes: accountData.notes || '',

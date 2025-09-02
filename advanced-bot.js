@@ -5,7 +5,7 @@ const SmartDataParser = require('./smart-data-parser');
 const UnifiedStats = require('./unified-stats');
 const { Client } = require('@notionhq/client');
 const LocalDatabase = require('./local-database');
-const ServerSync = require('./server-sync');
+const GitSync = require('./git-sync');
 const config = require('./config.json');
 
 // Token隔离和实例管理
@@ -185,7 +185,7 @@ function formatDate(date) {
 
 // 初始化本地数据库
 const localDB = new LocalDatabase(config.localDatabase);
-const serverSync = new ServerSync();
+const gitSync = new GitSync();
 const statsManager = new UnifiedStats(localDB);
 
 // 限额管理函数
@@ -1175,6 +1175,7 @@ async function handleStart(msg) {
     welcomeText += `• /outbound - 出库操作\n`;
     welcomeText += `• /outbound_email - 指定邮箱出库\n`;
     welcomeText += `• /dashboard - 数据面板（库存详情）\n`;
+    welcomeText += `• /profit - 利润统计\n`;
     welcomeText += `• /ban - 标记被封账号\n`;
     welcomeText += `• /find - 查找账号信息\n`;
     welcomeText += `• /limits - 设置每日限额\n`;
@@ -2796,7 +2797,7 @@ async function handleOutbound(msg) {
 
 // 格式化为CSV
 function formatToCSV(records) {
-  let csv = 'email,password,totp,backup_email,backup_password,api_key,cpny\n';
+  let csv = 'email,password,totp,backup_email,backup_password,api_key,access_key,secret_key,cpny\n';
   
   records.forEach(record => {
     const email = record.email || '';
@@ -2805,9 +2806,11 @@ function formatToCSV(records) {
     const backupEmail = record.auxiliary_email || record.auxiliaryEmail || ''; // 支持两种字段名
     const backupPassword = record.auxiliary_email_password || record.auxiliaryPassword || ''; // 辅助邮箱密码
     const apiKey = record.account_key || record.accountKey || ''; // API密钥
+    const accessKey = record.access_key || record.accessKey || ''; // AWS Access Key
+    const secretKey = record.secret_key || record.secretKey || ''; // AWS Secret Key
     const cpny = '1'; // 默认值为1
     
-    csv += `${email},${password},${totp},${backupEmail},${backupPassword},${apiKey},${cpny}\n`;
+    csv += `${email},${password},${totp},${backupEmail},${backupPassword},${apiKey},${accessKey},${secretKey},${cpny}\n`;
   });
   
   return csv;
@@ -3383,6 +3386,8 @@ async function handleUpdate(update) {
         await handleEmailOutbound(msg);
       } else if (msg.text === '/dashboard') {
         await handleDashboard(msg);
+      } else if (msg.text === '/profit') {
+        await handleProfitStats(msg);
       } else if (msg.text === '/ban') {
         await handleBan(msg);
       } else if (msg.text === '/mytoday') {
@@ -3525,7 +3530,6 @@ async function handleDashboard(msg) {
     const submitterCount = Object.keys(todayStats.submitters).length;
     if (submitterCount > 0) {
       message += `📅 **今日入库统计**\n`;
-      message += `• 活跃提交者：${submitterCount} 人\n`;
       message += `• 今日入库：${todayStats.totalCount} 个\n`;
       if (todayStats.totalAmount > 0) {
         message += `• 今日金额：¥${todayStats.totalAmount}\n`;
@@ -3535,8 +3539,8 @@ async function handleDashboard(msg) {
       // 4. 今日分类汇总
       if (Object.keys(todayStats.globalTypeStats).length > 0) {
         message += `📋 **今日分类汇总**\n`;
-        for (const [type, count] of Object.entries(todayStats.globalTypeStats)) {
-          message += `• ${type}: ${count} 个\n`;
+        for (const [type, stats] of Object.entries(todayStats.globalTypeStats)) {
+          message += `• ${type}: ${stats.count} 个（${stats.amount}￥）\n`;
         }
         message += `\n`;
       }
@@ -3583,7 +3587,6 @@ async function handleDashboard(msg) {
     const outboundStats = await getOutboundUserStats();
     if (outboundStats.totalOutboundUsers > 0) {
       message += `📤 **出库人统计**\n`;
-      message += `• 活跃出库人：${outboundStats.totalOutboundUsers} 人\n`;
       message += `• 总出库数：${outboundStats.totalOutboundCount} 个\n`;
       message += `  - 🔧 手动出库：${outboundStats.manualOutboundCount} 个\n`;
       message += `  - 🏪 卡网出售：${outboundStats.cardShopOutboundCount} 个\n\n`;
@@ -3651,6 +3654,108 @@ async function handleDashboard(msg) {
   }
 }
 
+// 处理利润统计命令
+async function handleProfitStats(msg) {
+  const chatId = msg.chat.id;
+  
+  // 检查管理员权限
+  if (!ADMIN_IDS.includes(chatId.toString())) {
+    await sendMessage(chatId, '❌ 只有管理员可以查看利润统计');
+    return;
+  }
+  
+  try {
+    const profitStats = await calculateProfitStats();
+    
+    let message = `💰 **利润统计报告**\n\n`;
+    
+    // 总利润概览
+    message += `📊 **总体利润**\n`;
+    message += `• 机器人出库利润：¥${profitStats.totalBotProfit.toFixed(2)}\n`;
+    message += `• 卡网出售利润：¥${profitStats.totalCardShopProfit.toFixed(2)}\n`;
+    message += `• 总利润：¥${(profitStats.totalBotProfit + profitStats.totalCardShopProfit).toFixed(2)}\n\n`;
+    
+    // 按类型分类利润统计
+    if (Object.keys(profitStats.byType).length > 0) {
+      message += `📋 **分类型利润统计**\n`;
+      for (const [type, typeProfit] of Object.entries(profitStats.byType)) {
+        const botProfit = typeProfit.botProfit || 0;
+        const cardShopProfit = typeProfit.cardShopProfit || 0;
+        const totalTypeProfit = botProfit + cardShopProfit;
+        
+        message += `• ${type}:\n`;
+        message += `  - 机器人出库：¥${botProfit.toFixed(2)}\n`;
+        message += `  - 卡网出售：¥${cardShopProfit.toFixed(2)}\n`;
+        message += `  - 小计：¥${totalTypeProfit.toFixed(2)}\n\n`;
+      }
+    }
+    
+    await sendMessage(chatId, message);
+    
+  } catch (error) {
+    console.error('[错误] 生成利润统计失败:', error);
+    await sendMessage(chatId, '❌ 生成利润统计失败：' + error.message);
+  }
+}
+
+// 计算利润统计
+async function calculateProfitStats() {
+  const allAccounts = await localDB.getAllAccounts();
+  
+  // 设置今日上午6点作为起始时间
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 6, 0, 0);
+  const todayStartStr = todayStart.toISOString();
+  
+  // 过滤今日6点后出库的账号
+  const outboundAccounts = allAccounts.filter(acc => {
+    if (acc.status !== '出库') return false;
+    if (!acc.outboundDate) return false;
+    
+    // 比较出库时间是否在今日6点之后
+    const outboundDateTime = new Date(acc.outboundDate + 'T00:00:00');
+    return outboundDateTime >= todayStart;
+  });
+  
+  const stats = {
+    totalBotProfit: 0,
+    totalCardShopProfit: 0,
+    byType: {}
+  };
+  
+  for (const account of outboundAccounts) {
+    const inboundPrice = account.inboundPrice || 0;
+    const outboundPrice = account.outboundPrice || 0;
+    const accountType = account.accountType || '未分类';
+    
+    // 计算利润：入库价格 - 出库价格
+    const profit = inboundPrice - outboundPrice;
+    
+    // 判断出库渠道：检查notes字段是否包含卡网标识
+    const isCardShop = (account.notes && account.notes.includes('卡网出售')) || 
+                       (account.submitterName && account.submitterName.includes('CardShop'));
+    
+    // 初始化类型统计
+    if (!stats.byType[accountType]) {
+      stats.byType[accountType] = {
+        botProfit: 0,
+        cardShopProfit: 0
+      };
+    }
+    
+    // 累加利润
+    if (isCardShop) {
+      stats.totalCardShopProfit += profit;
+      stats.byType[accountType].cardShopProfit += profit;
+    } else {
+      stats.totalBotProfit += profit;
+      stats.byType[accountType].botProfit += profit;
+    }
+  }
+  
+  return stats;
+}
+
 // 处理数据面板刷新回调
 async function handleDashboardRefresh(query) {
   const chatId = query.message.chat.id;
@@ -3703,7 +3808,6 @@ async function handleDashboardRefresh(query) {
     const submitterCount = Object.keys(todayStats.submitters).length;
     if (submitterCount > 0) {
       message += `📅 **今日入库统计**\n`;
-      message += `• 活跃提交者：${submitterCount} 人\n`;
       message += `• 今日入库：${todayStats.totalCount} 个\n`;
       if (todayStats.totalAmount > 0) {
         message += `• 今日金额：¥${todayStats.totalAmount}\n`;
@@ -3713,8 +3817,8 @@ async function handleDashboardRefresh(query) {
       // 4. 今日分类汇总
       if (Object.keys(todayStats.globalTypeStats).length > 0) {
         message += `📋 **今日分类汇总**\n`;
-        for (const [type, count] of Object.entries(todayStats.globalTypeStats)) {
-          message += `• ${type}: ${count} 个\n`;
+        for (const [type, stats] of Object.entries(todayStats.globalTypeStats)) {
+          message += `• ${type}: ${stats.count} 个（${stats.amount}￥）\n`;
         }
         message += `\n`;
       }
@@ -3761,7 +3865,6 @@ async function handleDashboardRefresh(query) {
     const outboundStats = await getOutboundUserStats();
     if (outboundStats.totalOutboundUsers > 0) {
       message += `📤 **出库人统计**\n`;
-      message += `• 活跃出库人：${outboundStats.totalOutboundUsers} 人\n`;
       message += `• 总出库数：${outboundStats.totalOutboundCount} 个\n`;
       message += `  - 🔧 手动出库：${outboundStats.manualOutboundCount} 个\n`;
       message += `  - 🏪 卡网出售：${outboundStats.cardShopOutboundCount} 个\n\n`;
@@ -4273,9 +4376,10 @@ async function init() {
     const me = await telegramRequest('getMe');
     console.log(`✅ 机器人 @${me.username} 已启动！`);
     
-    // 启动服务器同步
-    console.log('🔄 启动服务器数据同步...');
-    serverSync.startAutoSync();
+    // 启动Git同步（推送模式 - 主力机器人）
+    console.log('🔄 启动Git数据库同步...');
+    gitSync.startPushSync();
+    
     
     // 清理旧更新
     const oldUpdates = await telegramRequest('getUpdates', { offset: -1 });
@@ -4599,7 +4703,7 @@ async function getMyTodayStats(submitterId) {
 async function getAllTodayStats() {
   const today = new Date().toISOString().split('T')[0];
   const statsBySubmitter = {};
-  const globalTypeStats = {}; // 全局类型统计
+  const globalTypeStats = {}; // 全局类型统计 - 包含数量和金额
   let totalAmount = 0;
   let totalCount = 0;
   
@@ -4628,7 +4732,7 @@ async function getAllTodayStats() {
       
       // 初始化全局类型统计
       if (!globalTypeStats[type]) {
-        globalTypeStats[type] = 0;
+        globalTypeStats[type] = { count: 0, amount: 0 };
       }
       
       const submitterStats = statsBySubmitter[submitterId];
@@ -4646,7 +4750,8 @@ async function getAllTodayStats() {
       submitterStats.byType[type].count++;
       submitterStats.byType[type].amount += price;
       
-      globalTypeStats[type]++;
+      globalTypeStats[type].count++;
+      globalTypeStats[type].amount += price;
       totalCount++;
       totalAmount += price;
     }
@@ -5116,6 +5221,12 @@ function formatAccountInfo(account) {
   }
   if (account.key || account.accountKey) {
     message += `• 密钥：${account.key || account.accountKey}\n`;
+  }
+  if (account.accessKey) {
+    message += `• AWS Access Key：${account.accessKey}\n`;
+  }
+  if (account.secretKey) {
+    message += `• AWS Secret Key：${account.secretKey}\n`;
   }
   
   message += `\n📅 **时间信息**\n`;
